@@ -493,7 +493,7 @@ body {
     <!-- Active filters -->
     <div id="active-filters" class="flex items-center mt-3">
       <div class="w-full px-3 py-2 bg-[#EBEBEB] rounded-lg">
-        <div id="selected-categories" class="flex flex-wrap gap-1">
+        <div id="selected-categories" class="flex flex-wrap">
           <!-- Selected category tags will be inserted here -->
         </div>
       </div>
@@ -994,7 +994,7 @@ function updateSelectedCategoriesUI() {
   if (selectedCategories.size > 0) {
     Array.from(selectedCategories).forEach(category => {
       const tag = document.createElement('div');
-      tag.className = 'filter-tag bg-girly-blue-200 text-girly-blue-800 cursor-pointer text-xs px-2 py-1 rounded-full flex items-center mr-2 mb-1 border-0';
+      tag.className = 'filter-tag bg-girly-blue-200 text-girly-blue-800 cursor-pointer text-xs px-2 py-1 rounded-full flex items-center mb-1 border-0';
       
       const span = document.createElement('span');
       span.textContent = category;
@@ -1282,6 +1282,7 @@ function getLanguageClass(language) {
 </script>
 </body>
 </html>
+
 
 
 
