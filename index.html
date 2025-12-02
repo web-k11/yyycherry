@@ -11,7 +11,7 @@
   
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>目民的歌單</title>
+<title>🤍</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
 <script src="https://cdn.tailwindcss.com"></script>
 <script>
@@ -500,8 +500,8 @@ body {
 
 <div id="app" class="container mx-auto px-4 py-4 sm:py-6">
 <header class="text-center mb-3 sm:mb-3">
-  <h1 class="text-3xl sm:text-4xl font-bold mb-1 sm:mb-2 title-effect">目民的歌曲庫</h1>
-  <p class="text-grey-600 text-base sm:text-lg subtitle">👀 不要偷走我的眼睛 👀</p>
+  <h1 class="text-3xl sm:text-4xl font-bold mb-1 sm:mb-2 title-effect">🤍</h1>
+  <p class="text-grey-600 text-base sm:text-lg subtitle">...</p>
 </header>
 
 <div class="bg-white rounded-xl shadow-lg p-3 sm:p-6 mb-6 sm:mb-8 backdrop-blur-sm bg-opacity-90">
@@ -755,89 +755,112 @@ function toggleSearchClearButton() {
   }
 }
 
-// 獲取試算表數據
+// 獲取試算表數據 (僅使用替代服務，例如 OpenSheet)
 async function fetchSheetData() {
   showLoading();
   hideError();
 
   try {
-    // 使用新的試算表ID
-    const sheetId = '1ZPciyKh43EDvRu4TeJ_QkCq_K72tn1MACgEMkn0Olfw';
+    // 這裡只需要您的試算表 ID，不需要 API Key
+    const sheetId = '1ZPciyKh43EDvRu4TeJ_QkCq_K72tn1MACgEMkn0Olfw'; 
     
-    // 使用Google Sheets API v4直接獲取數據
-    // 注意：這需要試算表已設置為"任何人都可以查看"
-    const apiUrl = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/Sheet1?key=AIzaSyDFU1PsOmEKCZfnJkCi5-1kVMi6yk5aDtE`;
+    // 1. Fetch Title Data (分頁: title)
+    // 使用 opensheet.elk.sh 讀取標題分頁，與歌曲讀取方式一致
+    const titleApiUrl = `https://opensheet.elk.sh/${sheetId}/title`;
+    const titleResponse = await fetch(titleApiUrl);
+    
+    if (titleResponse.ok) {
+        const titleData = await titleResponse.json();
+        
+        // OpenSheet 返回的是物件陣列，我們假設第一筆資料 (索引 0) 就是標題內容
+        if (titleData.length > 0) {
+            const titleObject = titleData[0]; // 標題物件: {'分頁': '值A', '大標題': '值B', '副標題': '值C'}
+            
+            const pageTitle = titleObject['分頁'] || '';
+            const mainTitle = titleObject['大標題'] || '';
+            const subtitle = titleObject['副標題'] || '';
+            
+            // 直接更新 UI 元素 (不再需要額外的 updateTitleUI 函式)
+            if (pageTitle) {
+                document.title = pageTitle;
+            }
+            
+            const mainTitleElement = document.querySelector('.title-effect');
+            if (mainTitle && mainTitleElement) {
+                mainTitleElement.textContent = mainTitle;
+            }
+            
+            const subtitleElement = document.querySelector('.subtitle');
+            if (subtitle && subtitleElement) {
+                subtitleElement.textContent = subtitle;
+            }
+        }
+    } else {
+      console.warn('Could not fetch title data from OpenSheet. Falling back to default titles.');
+    }
 
-    const response = await fetch(apiUrl);
+    // 2. Fetch Songs Data (分頁: Sheet1) - 繼續使用 OpenSheet
+    const songsApiUrl = `https://opensheet.elk.sh/${sheetId}/Sheet1`;
+    const songsResponse = await fetch(songsApiUrl);
     
-    if (!response.ok) {
-      // 嘗試使用備用方法
+    if (!songsResponse.ok) {
+      // 如果 OpenSheet 失敗，則呼叫備用函式 (僅嘗試 SheetDB)
       return await fetchSheetDataAlternative(sheetId);
     }
 
-    const data = await response.json();
+    const songsData = await songsResponse.json();
     
-    if (!data.values || data.values.length <= 1) {
-      throw new Error('No data found in spreadsheet');
+    if (!songsData || songsData.length === 0) {
+      throw new Error('No song data found in Sheet1 via OpenSheet');
     }
     
-    // 處理數據 - 將標題行與數據行結合成對象數組
-    const headers = data.values[0];
-    const rows = data.values.slice(1);
-    
-    const processedData = rows.map(row => {
-      const item = {};
-      headers.forEach((header, index) => {
-        item[header] = row[index] || '';
-      });
-      return item;
-    });
-    
-    processSheetData(processedData);
+    // OpenSheet 的歌曲數據是陣列物件，可以直接傳給 processSheetData
+    processSheetData(songsData);
     hideLoading();
+    
   } catch (err) {
     console.error('Error fetching sheet data:', err);
-    // 嘗試使用備用方法
+    // 如果 OpenSheet 失敗，則呼叫備用函式 (僅嘗試 SheetDB)
     await fetchSheetDataAlternative(sheetId);
   }
 }
 
-// 備用獲取試算表數據方法
+
+
+
+
+
+
+
+
+
+
+
+// 最終備用獲取試算表數據方法 (僅使用 SheetDB)
 async function fetchSheetDataAlternative(sheetId) {
   try {
-    // 使用 OpenSheet API 作為備用
-    const apiUrl = `https://opensheet.elk.sh/${sheetId}/Sheet1`;
-    
+    // 這裡我們不再次嘗試 OpenSheet，直接使用 SheetDB 作為最終備用
+    const apiUrl = `https://sheetdb.io/api/v1/58f61be4dda40/${sheetId}`;
     const response = await fetch(apiUrl);
+    
     if (!response.ok) {
-      throw new Error('Network response was not ok');
+      throw new Error('All methods failed');
     }
-
+    
     const data = await response.json();
     processSheetData(data);
     hideLoading();
-  } catch (err) {
-    console.error('Error fetching sheet data (alternative):', err);
-    
-    // 最後嘗試使用 sheetdb.io
-    try {
-      const apiUrl = `https://sheetdb.io/api/v1/58f61be4dda40/${sheetId}`;
-      const response = await fetch(apiUrl);
-      
-      if (!response.ok) {
-        throw new Error('All methods failed');
-      }
-      
-      const data = await response.json();
-      processSheetData(data);
-      hideLoading();
-    } catch (finalErr) {
-      console.error('All methods failed:', finalErr);
-      hideLoading();
-      showError();
-    }
+  } catch (finalErr) {
+    console.error('All alternative methods failed:', finalErr);
+    hideLoading();
+    showError();
   }
 }
+
+
+
+
+
 
 // 處理試算表數據
 function processSheetData(data) {
