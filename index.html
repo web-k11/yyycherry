@@ -755,107 +755,84 @@ function toggleSearchClearButton() {
   }
 }
 
-// 獲取試算表數據 (僅使用替代服務，例如 OpenSheet)
-async function fetchSheetData() {
-  showLoading();
-  hideError();
+// --- 智慧更新設定 ---
+let lastUpdateTimestamp = 0; // 記錄上次成功的更新時間
+const UPDATE_COOLDOWN = 2 * 60 * 1000; // 2 分鐘 (毫秒)
 
-  try {
-    // 這裡只需要您的試算表 ID，不需要 API Key
-    const sheetId = '1ZPciyKh43EDvRu4TeJ_QkCq_K72tn1MACgEMkn0Olfw'; 
-    
-    // 1. Fetch Title Data (分頁: title)
-    // 使用 opensheet.elk.sh 讀取標題分頁，與歌曲讀取方式一致
-    const titleApiUrl = `https://opensheet.elk.sh/${sheetId}/title`;
-    const titleResponse = await fetch(titleApiUrl);
-    
-    if (titleResponse.ok) {
-        const titleData = await titleResponse.json();
-        
-        // OpenSheet 返回的是物件陣列，我們假設第一筆資料 (索引 0) 就是標題內容
-        if (titleData.length > 0) {
-            const titleObject = titleData[0]; // 標題物件: {'分頁': '值A', '大標題': '值B', '副標題': '值C'}
-            
-            const pageTitle = titleObject['分頁'] || '';
-            const mainTitle = titleObject['大標題'] || '';
-            const subtitle = titleObject['副標題'] || '';
-            
-            // 直接更新 UI 元素 (不再需要額外的 updateTitleUI 函式)
-            if (pageTitle) {
-                document.title = pageTitle;
-            }
-            
-            const mainTitleElement = document.querySelector('.title-effect');
-            if (mainTitle && mainTitleElement) {
-                mainTitleElement.textContent = mainTitle;
-            }
-            
-            const subtitleElement = document.querySelector('.subtitle');
-            if (subtitle && subtitleElement) {
-                subtitleElement.textContent = subtitle;
-            }
-        }
-    } else {
-      console.warn('Could not fetch title data from OpenSheet. Falling back to default titles.');
-    }
-
-    // 2. Fetch Songs Data (分頁: Sheet1) - 繼續使用 OpenSheet
-    const songsApiUrl = `https://opensheet.elk.sh/${sheetId}/Sheet1`;
-    const songsResponse = await fetch(songsApiUrl);
-    
-    if (!songsResponse.ok) {
-      // 如果 OpenSheet 失敗，則呼叫備用函式 (僅嘗試 SheetDB)
-      return await fetchSheetDataAlternative(sheetId);
-    }
-
-    const songsData = await songsResponse.json();
-    
-    if (!songsData || songsData.length === 0) {
-      throw new Error('No song data found in Sheet1 via OpenSheet');
-    }
-    
-    // OpenSheet 的歌曲數據是陣列物件，可以直接傳給 processSheetData
-    processSheetData(songsData);
-    hideLoading();
-    
-  } catch (err) {
-    console.error('Error fetching sheet data:', err);
-    // 如果 OpenSheet 失敗，則呼叫備用函式 (僅嘗試 SheetDB)
-    await fetchSheetDataAlternative(sheetId);
+// 獲取試算表數據 (新增 isSilent 參數，判斷是否為背景靜默更新)
+async function fetchSheetData(isSilent = false) {
+  // 如果不是靜默更新，才顯示讀取中動畫
+  if (!isSilent) {
+    showLoading();
+    hideError();
   }
-}
 
-
-
-
-
-
-
-
-
-
-
-
-// 最終備用獲取試算表數據方法 (僅使用 SheetDB)
-async function fetchSheetDataAlternative(sheetId) {
   try {
-    // 這裡我們不再次嘗試 OpenSheet，直接使用 SheetDB 作為最終備用
-    const apiUrl = `https://sheetdb.io/api/v1/58f61be4dda40/${sheetId}`;
-    const response = await fetch(apiUrl);
+  // 試算表ID
+    const dataSourceConfig = {
+      sheetId: '1sLi8ap9scV_iKPb_IiGLmPmianmian7kpKBk6lbyincsliUNYws',
+      apiKey: 'AIzaSyDFU1PsOmEKCZfuckfnJkCi5-1kVMi6yk5aDtE',
+      targetRange: 'Sheet1',
+      enableDataProxy: true
+    };
     
-    if (!response.ok) {
-      throw new Error('All methods failed');
-    }
-    
+    const proxyEndpoint = 'https://script.google.com/macros/s/AKfycbyS6O4CpUii2Qcq8S4r7u8ynMsFieLl_x44-G8t5l2bqVrK-jLBfsc_twXbOQHpm3uC/exec';
+    const targetUrl = `${proxyEndpoint}?t=${new Date().getTime()}`;
+
+    const response = await fetch(targetUrl);
+    if (!response.ok) throw new Error('Network response was not ok');
+
     const data = await response.json();
-    processSheetData(data);
+    
+    // 更新成功，紀錄時間
+    lastUpdateTimestamp = Date.now();
+    console.log(`[DataService] ${isSilent ? '背景更新' : '初次載入'}成功: ${new Date().toLocaleTimeString()}`);
+
+    // 1. 處理標題與頁面設定
+    if (data.titleData && data.titleData.length > 0) {
+      const titleObject = data.titleData[0];
+      if (titleObject['分頁']) document.title = titleObject['分頁'];
+      const mainTitleElement = document.querySelector('.title-effect');
+      if (mainTitleElement) mainTitleElement.textContent = titleObject['大標題'] || '';
+      const subtitleElement = document.querySelector('.subtitle');
+      if (subtitleElement) subtitleElement.textContent = titleObject['副標題'] || '';
+    }
+
+    // 2. 處理內容資料 (自動覆蓋舊資料)
+    if (data.sheet1Data) {
+      processSheetData(data.sheet1Data);
+    }
+    
     hideLoading();
-  } catch (finalErr) {
-    console.error('All alternative methods failed:', finalErr);
-    hideLoading();
-    showError();
+  } catch (err) {
+    console.error('[DataService] Sync failed:', err);
+    // 只有在非靜默狀態下才顯示錯誤訊息
+    if (!isSilent) {
+      hideLoading();
+      showError();
+    }
   }
 }
+
+// 偵測是否需要更新的邏輯
+function checkForUpdate() {
+  const now = Date.now();
+  // 如果從未更新過，或距離上次更新超過 2 分鐘
+  if (lastUpdateTimestamp !== 0 && (now - lastUpdateTimestamp > UPDATE_COOLDOWN)) {
+    console.log("[AutoSync] 偵測到活動且冷卻結束，啟動背景更新...");
+    fetchSheetData(true); // 傳入 true，代表靜默更新，不轉圈圈
+  }
+}
+
+// 監聽行為：使用者滑動網頁時
+window.addEventListener('scroll', () => {
+  checkForUpdate();
+}, { passive: true });
+
+// 初始化：頁面載入後執行第一次（這次會轉圈圈）
+window.addEventListener('DOMContentLoaded', () => {
+  fetchSheetData(false);
+});
 
 
 
@@ -1467,3 +1444,4 @@ function getLanguageClass(language) {
 </script>
 </body>
 </html>
+
